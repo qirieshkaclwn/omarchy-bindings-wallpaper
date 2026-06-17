@@ -1,0 +1,390 @@
+import subprocess
+import os
+import sys
+import json
+import time
+import math
+import argparse
+from PIL import Image, ImageDraw, ImageFont
+
+# Пути к отслеживаемым файлам
+WATCH_FILES = [
+    "/home/qirieshka/.config/hypr/bindings.conf",
+    "/home/qirieshka/.config/hypr/input.conf",
+    "/home/qirieshka/.config/hypr/looknfeel.conf",
+    "/home/qirieshka/.config/hypr/hyprland.conf",
+]
+
+BG_LINK = "/home/qirieshka/.config/omarchy/current/background"
+GENERATED_WALLPAPER = "/home/qirieshka/Pictures/wallpaper_with_bindings.png"
+CACHE_DIR = "/home/qirieshka/.cache/omarchy"
+SOURCE_WP_CACHE = os.path.join(CACHE_DIR, "last_source_wallpaper.txt")
+FONT_PATH = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
+
+# Словарь перевода действий
+TRANSLATION_MAP = {
+    "Terminal": "Терминал",
+    "Tmux": "Сессия Tmux",
+    "Browser": "Браузер",
+    "File manager": "Файловый менеджер",
+    "Launch apps": "Поиск и запуск программ",
+    "Omarchy menu": "Меню Omarchy",
+    "System menu": "Системное меню",
+    "Theme menu": "Меню выбора тем",
+    "Full screen": "На весь экран",
+    "Full width": "Растянуть по ширине",
+    "Close window": "Закрыть активное окно",
+    "Close all windows": "Закрыть все окна",
+    "Lock system": "Заблокировать экран",
+    "Toggle window floating/tiling": "Смена режима плавающее/плиточное",
+    "Toggle window split": "Изменить направление разделения",
+    "Pop window out (float & pin)": "Открепить окно (поверх других)",
+    "Universal copy": "Копировать",
+    "Universal paste": "Вставить",
+    "Universal cut": "Вырезать",
+    "Clipboard manager": "Буфер обмена",
+    "Audio controls": "Управление звуком",
+    "Bluetooth controls": "Управление Bluetooth",
+    "Wifi controls": "Управление Wi-Fi",
+    "Emoji picker": "Выбор эмодзи",
+    "Color picker": "Пипетка цвета",
+    "Screenshot": "Сделать снимок экрана",
+    "Screenrecording": "Запись экрана",
+    "Show key bindings": "Показать горячие клавиши",
+    "Focus on next window": "Следующее окно",
+    "Focus on previous window": "Предыдущее окно",
+}
+
+def get_mtimes():
+    """Получает время модификации отслеживаемых файлов"""
+    mtimes = {}
+    for f in WATCH_FILES:
+        if os.path.exists(f):
+            mtimes[f] = os.path.getmtime(f)
+    return mtimes
+
+def get_screen_resolution():
+    """Получает разрешение активного монитора"""
+    width, height = 1920, 1080
+    try:
+        mon_out = subprocess.check_output(["hyprctl", "monitors", "-j"]).decode("utf-8")
+        mon_data = json.loads(mon_out)
+        for m in mon_data:
+            if m.get("focused"):
+                width = m.get("width", 1920)
+                height = m.get("height", 1080)
+                break
+    except Exception as e:
+        print(f"Error getting resolution: {e}", file=sys.stderr)
+    return width, height
+
+def get_source_wallpaper():
+    """Определяет путь к исходным обоям без наложенных биндов"""
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    
+    # 1. Проверяем текущую ссылку
+    if os.path.exists(BG_LINK):
+        resolved = os.path.realpath(BG_LINK)
+        # Если ссылка указывает НЕ на наши сгенерированные обои, значит, юзер сменил обои
+        if resolved != GENERATED_WALLPAPER:
+            # Сохраняем как новые исходные обои
+            with open(SOURCE_WP_CACHE, "w") as f:
+                f.write(resolved)
+            return resolved
+
+    # 2. Если ссылка указывает на сгенерированные обои, читаем кэш
+    if os.path.exists(SOURCE_WP_CACHE):
+        with open(SOURCE_WP_CACHE, "r") as f:
+            cached = f.read().strip()
+            if os.path.exists(cached):
+                return cached
+
+    # 3. Дефолтный путь
+    default_bg = "/home/qirieshka/.config/omarchy/current/theme/backgrounds/1-synth-scape.jpg"
+    if os.path.exists(default_bg):
+        return default_bg
+    return None
+
+def get_keybindings():
+    """Получает список всех горячих клавиш системы с фильтрацией и переводом"""
+    bindings = []
+    try:
+        cmd_out = subprocess.check_output(["omarchy", "menu", "keybindings", "--print"]).decode("utf-8")
+        for line in cmd_out.splitlines():
+            if "→" in line:
+                parts = line.split("→")
+                shortcut = parts[0].strip()
+                action = parts[1].strip()
+                
+                # Очистка HTML-сущностей
+                action = action.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
+                
+                # Переводим, если есть в словаре
+                if action in TRANSLATION_MAP:
+                    action = TRANSLATION_MAP[action]
+                    
+                bindings.append((shortcut, action))
+    except Exception as e:
+        print(f"Error reading keybindings: {e}", file=sys.stderr)
+        
+    # Фильтрация и ограничение
+    seen_shortcuts = set()
+    filtered = []
+    
+    workspace_switches = []
+    workspace_moves = []
+    workspace_silent_moves = []
+    group_switches = []
+    
+    for shortcut, action in bindings:
+        if "XF86" in shortcut or "switch:" in shortcut:
+            continue
+        if shortcut in seen_shortcuts:
+            continue
+            
+        action_lower = action.lower()
+        
+        # Фильтруем запуск отдельных сторонних программ (Obsidian, Signal, Email, Spotify, и т.д.)
+        is_allowed = True
+        for app in ["signal", "obsidian", "typora", "docker", "music", "spotify", "editor", "passwords", 
+                    "chatgpt", "grok", "whatsapp", "google messages", "google photos", "youtube", "email", 
+                    "calendar", "file manager", "файловый менеджер", "nautilus", "1password", "cliamp", "lazydocker", "signal-desktop"]:
+            if app in action_lower:
+                is_allowed = False
+                break
+                
+        # Но явно разрешаем Терминал и Браузер
+        if "terminal" in action_lower or "tmux" in action_lower or "browser" in action_lower or "браузер" in action_lower:
+            is_allowed = True
+            
+        if not is_allowed:
+            continue
+            
+        seen_shortcuts.add(shortcut)
+        
+        # Группируем числовые бинды для компактности
+        if shortcut.startswith("SUPER + ") and shortcut[8:].isdigit():
+            workspace_switches.append(int(shortcut[8:]))
+        elif shortcut.startswith("SUPER SHIFT + ") and shortcut[14:].isdigit():
+            workspace_moves.append(int(shortcut[14:]))
+        elif shortcut.startswith("SUPER SHIFT ALT + ") and shortcut[18:].isdigit():
+            workspace_silent_moves.append(int(shortcut[18:]))
+        elif shortcut.startswith("SUPER ALT + ") and shortcut[12:].isdigit():
+            group_switches.append(int(shortcut[12:]))
+        else:
+            filtered.append((shortcut, action))
+            
+    # Добавляем объединенные числовые бинды в начало
+    if workspace_switches:
+        filtered.insert(0, ("SUPER + 1..9", f"Перейти на раб. стол 1..{max(workspace_switches)}"))
+    if workspace_moves:
+        filtered.insert(1, ("SUPER SHIFT + 1..9", f"Переместить окно на раб. стол 1..{max(workspace_moves)}"))
+    if workspace_silent_moves:
+        filtered.insert(2, ("SUPER SHIFT ALT + 1..9", f"Переместить окно скрытно на раб. стол 1..{max(workspace_silent_moves)}"))
+    if group_switches:
+        filtered.insert(3, ("SUPER ALT + 1..5", f"Перейти в группу окон 1..{max(group_switches)}"))
+        
+    # Ограничиваем общим количеством 50 биндов
+    return filtered[:50]
+
+def generate_wallpaper():
+    """Генерирует новые обои с наложением биндов"""
+    print("Generating wallpaper...")
+    width, height = get_screen_resolution()
+    bg_path = get_source_wallpaper()
+    
+    if not bg_path:
+        print("Error: Source wallpaper not found.", file=sys.stderr)
+        return False
+        
+    bindings = get_keybindings()
+    if not bindings:
+        print("Error: No keybindings found.", file=sys.stderr)
+        return False
+        
+    # Открываем фоновую картинку
+    try:
+        img = Image.open(bg_path)
+    except Exception as e:
+        print(f"Failed to open source image {bg_path}: {e}", file=sys.stderr)
+        return False
+        
+    # Кадрируем под пропорции экрана
+    img_ratio = img.width / img.height
+    screen_ratio = width / height
+    if img_ratio > screen_ratio:
+        new_width = int(img.height * screen_ratio)
+        left = (img.width - new_width) // 2
+        img = img.crop((left, 0, left + new_width, img.height))
+    else:
+        new_height = int(img.width / screen_ratio)
+        top = (img.height - new_height) // 2
+        img = img.crop((0, top, img.width, top + new_height))
+        
+    img = img.resize((width, height), Image.Resampling.LANCZOS)
+    
+    # Создаем оверлей
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    
+    # Загружаем шрифт (крупнее: 14px для текста, 24px для заголовка)
+    try:
+        title_font = ImageFont.truetype(FONT_PATH, 24)
+        text_font = ImageFont.truetype(FONT_PATH, 14)
+        text_bold = ImageFont.truetype(FONT_PATH, 14)
+    except IOError:
+        title_font = ImageFont.load_default()
+        text_font = ImageFont.load_default()
+        text_bold = ImageFont.load_default()
+        
+    # Рассчитываем сетку колонок
+    # Максимум 25 строк на колонку
+    max_rows = 25
+    N = len(bindings)
+    num_columns = min(4, math.ceil(N / max_rows))
+    rows_per_col = math.ceil(N / num_columns)
+    
+    col_width = 500
+    gap = 40
+    card_width = num_columns * col_width + (num_columns - 1) * gap + 60
+    
+    # Высота строки 26px, отступы сверху/снизу 110px
+    row_height = 26
+    card_height = rows_per_col * row_height + 110
+    
+    card_x1 = (width - card_width) // 2
+    card_y1 = (height - card_height) // 2  # Центрируем по вертикали
+    card_x2 = card_x1 + card_width
+    card_y2 = card_y1 + card_height
+    
+    # Рисуем подложку карточки
+    draw.rounded_rectangle(
+        [card_x1, card_y1, card_x2, card_y2],
+        radius=15,
+        fill=(15, 17, 26, 170),      # Catppuccin Mocha с прозрачностью
+        outline=(255, 255, 255, 30), # Тонкая граница
+        width=1
+    )
+    
+    # Рисуем заголовок
+    header_text = "   ГОРЯЧИЕ КЛАВИШИ СИСТЕМЫ"
+    draw.text((card_x1 + 30, card_y1 + 25), header_text, font=title_font, fill=(137, 220, 235, 255))
+    
+    # Разделитель
+    draw.line(
+        [(card_x1 + 30, card_y1 + 75), (card_x2 - 30, card_y1 + 75)],
+        fill=(255, 255, 255, 30),
+        width=1
+    )
+    
+    # Распределяем бинды по колонкам и рисуем их
+    columns = [bindings[i:i + rows_per_col] for i in range(0, N, rows_per_col)]
+    
+    for col_idx, col_data in enumerate(columns):
+        if col_idx >= num_columns:
+            break
+        col_x = card_x1 + 30 + col_idx * (col_width + gap)
+        y_offset = card_y1 + 95
+        
+        for shortcut, action in col_data:
+            # Ограничиваем длину бинда, чтобы не вылезал за границы колонки
+            shortcut_disp = shortcut[:22]
+            action_disp = action[:28] + "..." if len(action) > 30 else action
+            
+            # Сочетание клавиш
+            draw.text((col_x, y_offset), shortcut_disp, font=text_bold, fill=(137, 180, 250, 255))
+            
+            # Стрелочка
+            draw.text((col_x + 195, y_offset), "→", font=text_font, fill=(166, 173, 200, 120))
+            
+            # Действие
+            draw.text((col_x + 225, y_offset), action_disp, font=text_font, fill=(205, 214, 244, 255))
+            
+            y_offset += row_height
+            
+    # Объединяем и сохраняем
+    final_img = Image.alpha_composite(img.convert("RGBA"), overlay)
+    
+    output_dir = os.path.dirname(GENERATED_WALLPAPER)
+    os.makedirs(output_dir, exist_ok=True)
+    final_img.convert("RGB").save(GENERATED_WALLPAPER, "PNG")
+    
+    # Устанавливаем новые обои в системе
+    os.environ["CURRENT_BACKGROUND_LINK"] = BG_LINK
+    subprocess.run(["ln", "-nsf", GENERATED_WALLPAPER, BG_LINK])
+    subprocess.run(["pkill", "-x", "swaybg"])
+    
+    # Запускаем swaybg через uwsm-app в фоне
+    try:
+        subprocess.Popen(
+            ["uwsm-app", "--", "swaybg", "-i", BG_LINK, "-m", "fill"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+    except Exception as e:
+        print(f"Error starting swaybg: {e}", file=sys.stderr)
+        
+    print(f"Wallpaper updated successfully! Source: {bg_path}")
+    return True
+
+def daemon_mode():
+    """Запускает непрерывный мониторинг файлов"""
+    print("Starting Omarchy Keybindings Wallpaper Daemon...")
+    
+    # Первоначальная генерация при старте
+    generate_wallpaper()
+    
+    last_mtimes = get_mtimes()
+    
+    while True:
+        try:
+            time.sleep(3)
+            
+            # 1. Проверяем, сменил ли пользователь фоновую картинку
+            if os.path.exists(BG_LINK):
+                resolved = os.path.realpath(BG_LINK)
+                if resolved != GENERATED_WALLPAPER:
+                    print(f"Wallpaper change detected to: {resolved}")
+                    # Сохраняем новый исходник
+                    with open(SOURCE_WP_CACHE, "w") as f:
+                        f.write(resolved)
+                    generate_wallpaper()
+                    last_mtimes = get_mtimes()
+                    continue
+                    
+            # 2. Проверяем изменения в файлах конфигурации
+            config_changed = False
+            current_mtimes = get_mtimes()
+            for f in WATCH_FILES:
+                if os.path.exists(f):
+                    mtime = current_mtimes.get(f)
+                    if mtime != last_mtimes.get(f):
+                        print(f"Config change detected in: {f}")
+                        config_changed = True
+                        
+            if config_changed:
+                generate_wallpaper()
+                last_mtimes = current_mtimes
+                
+        except KeyboardInterrupt:
+            print("Daemon stopped.")
+            break
+        except Exception as e:
+            print(f"Daemon error: {e}", file=sys.stderr)
+            time.sleep(5)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Omarchy Keybindings Wallpaper Generator")
+    parser.add_argument("--daemon", action="store_true", help="Run in background daemon mode")
+    parser.add_argument("--generate", action="store_true", help="Generate wallpaper once and exit")
+    
+    args = parser.parse_args()
+    
+    if args.daemon:
+        daemon_mode()
+    elif args.generate:
+        generate_wallpaper()
+    else:
+        # По умолчанию генерируем один раз
+        generate_wallpaper()
