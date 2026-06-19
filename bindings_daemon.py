@@ -8,29 +8,29 @@ import argparse
 from PIL import Image, ImageDraw, ImageFont
 
 def ensure_wayland_env():
+    uid = os.getuid()
     # Detect HYPRLAND_INSTANCE_SIGNATURE
-    if "HYPRLAND_INSTANCE_SIGNATURE" not in os.environ:
-        uid = os.getuid()
-        run_user_hypr = f"/run/user/{uid}/hypr"
-        if os.path.exists(run_user_hypr):
-            dirs = [d for d in os.listdir(run_user_hypr) if os.path.isdir(os.path.join(run_user_hypr, d))]
+    run_user_hypr = f"/run/user/{uid}/hypr"
+    if os.path.exists(run_user_hypr):
+        dirs = [d for d in os.listdir(run_user_hypr) if os.path.isdir(os.path.join(run_user_hypr, d))]
+        if dirs:
+            dirs.sort(key=lambda x: os.path.getmtime(os.path.join(run_user_hypr, x)), reverse=True)
+            os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = dirs[0]
+    else:
+        tmp_hypr = "/tmp/hypr"
+        if os.path.exists(tmp_hypr):
+            dirs = [d for d in os.listdir(tmp_hypr) if os.path.isdir(os.path.join(tmp_hypr, d))]
             if dirs:
+                dirs.sort(key=lambda x: os.path.getmtime(os.path.join(tmp_hypr, x)), reverse=True)
                 os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = dirs[0]
-        else:
-            tmp_hypr = "/tmp/hypr"
-            if os.path.exists(tmp_hypr):
-                dirs = [d for d in os.listdir(tmp_hypr) if os.path.isdir(os.path.join(tmp_hypr, d))]
-                if dirs:
-                    os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = dirs[0]
                     
     # Detect WAYLAND_DISPLAY
-    if "WAYLAND_DISPLAY" not in os.environ:
-        uid = os.getuid()
-        run_user = f"/run/user/{uid}"
-        if os.path.exists(run_user):
-            wayland_files = [f for f in os.listdir(run_user) if f.startswith("wayland-")]
-            if wayland_files:
-                os.environ["WAYLAND_DISPLAY"] = wayland_files[0]
+    run_user = f"/run/user/{uid}"
+    if os.path.exists(run_user):
+        wayland_files = [f for f in os.listdir(run_user) if f.startswith("wayland-")]
+        if wayland_files:
+            wayland_files.sort(key=lambda x: os.path.getmtime(os.path.join(run_user, x)), reverse=True)
+            os.environ["WAYLAND_DISPLAY"] = wayland_files[0]
 
 ensure_wayland_env()
 
@@ -217,6 +217,7 @@ def get_keybindings():
 def generate_wallpaper():
     """Генерирует новые обои с наложением биндов"""
     print("Generating wallpaper...")
+    ensure_wayland_env()
     width, height = get_screen_resolution()
     bg_path = get_source_wallpaper()
     
@@ -227,6 +228,12 @@ def generate_wallpaper():
     bindings = get_keybindings()
     if not bindings:
         print("Error: No keybindings found.", file=sys.stderr)
+        return False
+        
+    # We expect at least a few standard bindings. If we only got static ones, it means hyprctl/system discovery failed.
+    has_super = any(b[0].startswith("SUPER") for b in bindings)
+    if len(bindings) < 5 or not has_super:
+        print("Error: Could not retrieve system keybindings (only got static or too few). Retrying later...", file=sys.stderr)
         return False
         
     # Открываем фоновую картинку
@@ -360,13 +367,20 @@ def daemon_mode():
     print("Starting Omarchy Keybindings Wallpaper Daemon...")
     
     # Первоначальная генерация при старте
-    generate_wallpaper()
+    wallpaper_generated = generate_wallpaper()
     
     last_mtimes = get_mtimes()
     
     while True:
         try:
             time.sleep(3)
+            
+            # Если обои еще не были успешно сгенерированы (например, ждали запуска Hyprland), пробуем снова
+            if not wallpaper_generated:
+                wallpaper_generated = generate_wallpaper()
+                if wallpaper_generated:
+                    last_mtimes = get_mtimes()
+                continue
             
             # 1. Проверяем, сменил ли пользователь фоновую картинку
             if os.path.exists(BG_LINK):
@@ -376,7 +390,7 @@ def daemon_mode():
                     # Сохраняем новый исходник
                     with open(SOURCE_WP_CACHE, "w") as f:
                         f.write(resolved)
-                    generate_wallpaper()
+                    wallpaper_generated = generate_wallpaper()
                     last_mtimes = get_mtimes()
                     continue
                     
@@ -391,7 +405,7 @@ def daemon_mode():
                         config_changed = True
                         
             if config_changed:
-                generate_wallpaper()
+                wallpaper_generated = generate_wallpaper()
                 last_mtimes = current_mtimes
                 
         except KeyboardInterrupt:
