@@ -36,27 +36,28 @@
 
 ## Установка
 
-Выполните следующие шаги для установки и активации плагина:
+Вы можете установить и запустить расширение одной командой:
 
-1. **Склонируйте репозиторий** (или перенесите файлы) в директорию расширений Omarchy:
+```bash
+git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git ~/.config/omarchy/extensions/bindings-wallpaper && mkdir -p ~/.config/systemd/user/ && ln -sf ~/.config/omarchy/extensions/bindings-wallpaper/omarchy-bindings-wallpaper.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now omarchy-bindings-wallpaper.service
+```
+
+Или выполните шаги установки вручную:
+
+1. **Склонируйте репозиторий** в директорию расширений:
    ```bash
-   mkdir -p ~/.config/omarchy/extensions
-   # Склонируйте плагин в папку bindings-wallpaper:
-   git clone <url-репозитория> ~/.config/omarchy/extensions/bindings-wallpaper
+   git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git ~/.config/omarchy/extensions/bindings-wallpaper
    ```
 
-2. **Зарегистрируйте службу systemd:**
-   Создайте символическую ссылку на файл службы в конфигурации пользователя (или просто скопируйте его):
+2. **Зарегистрируйте службу systemd**, создав символическую ссылку:
    ```bash
-   cp ~/.config/omarchy/extensions/bindings-wallpaper/omarchy-bindings-wallpaper.service ~/.config/systemd/user/
+   mkdir -p ~/.config/systemd/user/
+   ln -sf ~/.config/omarchy/extensions/bindings-wallpaper/omarchy-bindings-wallpaper.service ~/.config/systemd/user/
    ```
 
-3. **Активируйте и запустите службу:**
+3. **Запустите службу**:
    ```bash
-   # Обновите конфигурацию демона systemd
    systemctl --user daemon-reload
-
-   # Включите автозапуск и запустите демон прямо сейчас
    systemctl --user enable --now omarchy-bindings-wallpaper.service
    ```
 
