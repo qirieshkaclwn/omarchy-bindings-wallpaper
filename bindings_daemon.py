@@ -51,17 +51,31 @@ SOURCE_WP_CACHE = os.path.join(CACHE_DIR, "last_source_wallpaper.txt")
 FONT_PATH = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
 
 def get_locale_lang():
-    lang = os.environ.get("LANG", "") or os.environ.get("LC_MESSAGES", "")
-    if not lang:
-        try:
-            import locale
-            lang = locale.getlocale(locale.LC_MESSAGES)[0]
-        except Exception:
-            lang = None
-    if not lang:
-        lang = "en"
-    lang = lang.split(".")[0].split("_")[0].lower()
-    return lang
+    # Если в любой из переменных локали указан русский, используем его (актуально при LANG=en и LC_TIME=ru)
+    for key, val in os.environ.items():
+        if (key.startswith("LC_") or key == "LANG") and "ru" in val.lower():
+            return "ru"
+            
+    # Стандартный поиск по приоритетам
+    for var in ["LC_MESSAGES", "LANG", "LC_TIME", "LC_NUMERIC", "LC_MONETARY"]:
+        val = os.environ.get(var, "")
+        if val:
+            lang = val.split(".")[0].split("_")[0].lower()
+            if lang and lang != "en":
+                return lang
+                
+    try:
+        import locale
+        for cat in [locale.LC_MESSAGES, locale.LC_TIME, locale.LC_NUMERIC]:
+            lang = locale.getlocale(cat)[0]
+            if lang:
+                lang = lang.split(".")[0].split("_")[0].lower()
+                if lang:
+                    return lang
+    except Exception:
+        pass
+        
+    return "en"
 
 LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
 
