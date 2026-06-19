@@ -3,7 +3,7 @@ Description=Omarchy Keybindings Wallpaper Daemon
 After=graphical-session.target
 
 [Service]
-ExecStart=/usr/bin/python /home/qirieshka/.config/omarchy/extensions/bindings-wallpaper/bindings_daemon.py --daemon
+ExecStart=/usr/bin/python %h/.config/omarchy/extensions/bindings-wallpaper/bindings_daemon.py --daemon
 Restart=always
 RestartSec=5
 

@@ -34,17 +34,19 @@ def ensure_wayland_env():
 
 ensure_wayland_env()
 
+HOME = os.path.expanduser("~")
+
 # Пути к отслеживаемым файлам
 WATCH_FILES = [
-    "/home/qirieshka/.config/hypr/bindings.conf",
-    "/home/qirieshka/.config/hypr/input.conf",
-    "/home/qirieshka/.config/hypr/looknfeel.conf",
-    "/home/qirieshka/.config/hypr/hyprland.conf",
+    os.path.join(HOME, ".config/hypr/bindings.conf"),
+    os.path.join(HOME, ".config/hypr/input.conf"),
+    os.path.join(HOME, ".config/hypr/looknfeel.conf"),
+    os.path.join(HOME, ".config/hypr/hyprland.conf"),
 ]
 
-BG_LINK = "/home/qirieshka/.config/omarchy/current/background"
-GENERATED_WALLPAPER = "/home/qirieshka/Pictures/wallpaper_with_bindings.png"
-CACHE_DIR = "/home/qirieshka/.cache/omarchy"
+BG_LINK = os.path.join(HOME, ".config/omarchy/current/background")
+GENERATED_WALLPAPER = os.path.join(HOME, "Pictures/wallpaper_with_bindings.png")
+CACHE_DIR = os.path.join(HOME, ".cache/omarchy")
 SOURCE_WP_CACHE = os.path.join(CACHE_DIR, "last_source_wallpaper.txt")
 FONT_PATH = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
 
@@ -127,7 +129,7 @@ def get_source_wallpaper():
                 return cached
 
     # 3. Дефолтный путь
-    default_bg = "/home/qirieshka/.config/omarchy/current/theme/backgrounds/1-synth-scape.jpg"
+    default_bg = os.path.join(HOME, ".config/omarchy/current/theme/backgrounds/1-synth-scape.jpg")
     if os.path.exists(default_bg):
         return default_bg
     return None
@@ -136,7 +138,8 @@ def get_keybindings():
     """Получает список всех горячих клавиш системы с фильтрацией и переводом"""
     bindings = []
     try:
-        cmd_out = subprocess.check_output(["/home/qirieshka/.local/share/omarchy/bin/omarchy", "menu", "keybindings", "--print"]).decode("utf-8")
+        omarchy_bin = os.path.join(HOME, ".local/share/omarchy/bin/omarchy")
+        cmd_out = subprocess.check_output([omarchy_bin, "menu", "keybindings", "--print"]).decode("utf-8")
         for line in cmd_out.splitlines():
             if "→" in line:
                 parts = line.split("→")
