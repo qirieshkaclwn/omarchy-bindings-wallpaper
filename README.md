@@ -1,61 +1,63 @@
 # Omarchy Keybindings Wallpaper
 
-![Демонстрация работы](preview.png)
+![Preview](preview.png)
 
-Легковесный фоновый демон для дистрибутива Omarchy (на базе Hyprland), который автоматически рендерит шпаргалку с горячими клавишами системы прямо на ваши текущие обои в виде красивой полупрозрачной панели.
+*Read this in other languages: [Русский](README.ru.md).*
 
----
-
-## Возможности
-
-1. **Динамическая верстка и адаптивность:** 
-   Скрипт анализирует количество уникальных биндов и автоматически распределяет их в сетку от 1 до 4 колонок. Панель центрируется на экране как по вертикали, так и по горизонтали.
-2. **Умная фильтрация и компактность:**
-   * Объединяет повторяющиеся числовые комбинации (например, переключение воркспейсов `SUPER + 1..9` группируется в одну емкую строку).
-   * Исключает ярлыки запуска сторонних приложений и веб-сайтов (Signal, Obsidian, WhatsApp, Docker, почта и т.д.), чтобы не перегружать экран.
-   * Оставляет только ключевые системные действия, а также запуск Терминала и Браузера.
-   * Общий объем списка жестко лимитирован до 50 биндов (вмещается в 2 компактные колонки).
-3. **Автоматическое обновление (Event-Driven):**
-   * Следит за файлами настроек в `~/.config/hypr/` и мгновенно перерисовывает обои при добавлении или изменении любого бинда.
-   * Отслеживает ручную смену темы обоев или переключение картинок, накладывая шпаргалку на новые обои «на лету».
-4. **Системная интеграция:**
-   * Запускается и работает как стандартная служба пользователя systemd. Не расходует процессор и память впустую (проверка изменений происходит раз в 3 секунды).
-   * Защищен от бесконечного цикла самоперезаписи обоев.
+A lightweight background daemon for the Omarchy Linux distribution (based on Hyprland) that automatically renders a system keybindings cheat sheet directly onto your active wallpaper inside a beautiful semi-transparent card.
 
 ---
 
-## Требования
+## Features
 
-Для работы плагина необходимы:
+1. **Dynamic Layout and Responsiveness:** 
+   The script analyzes the number of unique bindings and automatically distributes them into a grid of 1 to 4 columns. The card is centered both vertically and horizontally on your screen.
+2. **Smart Filtering and Compacting:**
+   * Groups repetitive numerical shortcuts (e.g., workspace switches `SUPER + 1..9` are grouped into a single, compact line).
+   * Excludes shortcuts for third-party applications and websites (Signal, Obsidian, WhatsApp, Docker, Email, etc.) to keep the layout clean and uncluttered.
+   * Keeps only key system actions, plus Terminal and Web Browser launches.
+   * The total list is capped at 50 shortcuts (which comfortably fits in 2 columns).
+3. **Automatic Event-Driven Updates:**
+   * Watches settings files in `~/.config/hypr/` and instantly redraws the wallpaper when you add or modify a binding.
+   * Detects manual wallpaper changes or theme changes and applies the cheat sheet to the new background on the fly.
+4. **System Integration:**
+   * Runs as a standard systemd user service. Resource usage is extremely low (checks files every 3 seconds only).
+   * Guarded against infinite recursive loops of self-writing the wallpaper.
+
+---
+
+## Requirements
+
+To run this extension, you need:
 * Python 3
-* Библиотека для работы с изображениями Pillow (`pip install Pillow`)
-* Установленный шрифт JetBrains Mono Nerd Font (по умолчанию ожидается по пути `/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf`)
-* Утилита отрисовки обоев swaybg (стандартная для Omarchy)
+* Pillow image library (`pip install Pillow`)
+* JetBrains Mono Nerd Font (expected by default at `/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf`)
+* swaybg wallpaper utility (installed by default in Omarchy)
 
 ---
 
-## Установка
+## Installation
 
-Вы можете установить и запустить расширение одной командой:
+You can install and start the extension with a single command:
 
 ```bash
 git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git ~/.config/omarchy/extensions/bindings-wallpaper && mkdir -p ~/.config/systemd/user/ && ln -sf ~/.config/omarchy/extensions/bindings-wallpaper/omarchy-bindings-wallpaper.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now omarchy-bindings-wallpaper.service
 ```
 
-Или выполните шаги установки вручную:
+Or perform the installation steps manually:
 
-1. **Склонируйте репозиторий** в директорию расширений:
+1. **Clone the repository** to the extensions directory:
    ```bash
    git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git ~/.config/omarchy/extensions/bindings-wallpaper
    ```
 
-2. **Зарегистрируйте службу systemd**, создав символическую ссылку:
+2. **Register the systemd service** by creating a symbolic link:
    ```bash
    mkdir -p ~/.config/systemd/user/
    ln -sf ~/.config/omarchy/extensions/bindings-wallpaper/omarchy-bindings-wallpaper.service ~/.config/systemd/user/
    ```
 
-3. **Запустите службу**:
+3. **Start the service**:
    ```bash
    systemctl --user daemon-reload
    systemctl --user enable --now omarchy-bindings-wallpaper.service
@@ -63,17 +65,17 @@ git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git ~/.con
 
 ---
 
-## Проверка работы
+## Verification
 
-Вы можете проверить состояние работающей службы с помощью команды:
+You can verify the status of the running service with:
 ```bash
 systemctl --user status omarchy-bindings-wallpaper.service
 ```
 
-Любые изменения в файле `~/.config/hypr/bindings.conf` теперь автоматически отобразятся на ваших обоях в течение 3 секунд!
+Any changes to `~/.config/hypr/bindings.conf` will now automatically show up on your wallpaper within 3 seconds!
 
 ---
 
-## Лицензия
+## License
 
-Этот проект распространяется под лицензией [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
