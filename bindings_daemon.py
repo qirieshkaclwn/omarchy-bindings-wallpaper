@@ -7,6 +7,33 @@ import math
 import argparse
 from PIL import Image, ImageDraw, ImageFont
 
+def ensure_wayland_env():
+    # Detect HYPRLAND_INSTANCE_SIGNATURE
+    if "HYPRLAND_INSTANCE_SIGNATURE" not in os.environ:
+        uid = os.getuid()
+        run_user_hypr = f"/run/user/{uid}/hypr"
+        if os.path.exists(run_user_hypr):
+            dirs = [d for d in os.listdir(run_user_hypr) if os.path.isdir(os.path.join(run_user_hypr, d))]
+            if dirs:
+                os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = dirs[0]
+        else:
+            tmp_hypr = "/tmp/hypr"
+            if os.path.exists(tmp_hypr):
+                dirs = [d for d in os.listdir(tmp_hypr) if os.path.isdir(os.path.join(tmp_hypr, d))]
+                if dirs:
+                    os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = dirs[0]
+                    
+    # Detect WAYLAND_DISPLAY
+    if "WAYLAND_DISPLAY" not in os.environ:
+        uid = os.getuid()
+        run_user = f"/run/user/{uid}"
+        if os.path.exists(run_user):
+            wayland_files = [f for f in os.listdir(run_user) if f.startswith("wayland-")]
+            if wayland_files:
+                os.environ["WAYLAND_DISPLAY"] = wayland_files[0]
+
+ensure_wayland_env()
+
 # Пути к отслеживаемым файлам
 WATCH_FILES = [
     "/home/qirieshka/.config/hypr/bindings.conf",
@@ -109,7 +136,7 @@ def get_keybindings():
     """Получает список всех горячих клавиш системы с фильтрацией и переводом"""
     bindings = []
     try:
-        cmd_out = subprocess.check_output(["omarchy", "menu", "keybindings", "--print"]).decode("utf-8")
+        cmd_out = subprocess.check_output(["/home/qirieshka/.local/share/omarchy/bin/omarchy", "menu", "keybindings", "--print"]).decode("utf-8")
         for line in cmd_out.splitlines():
             if "→" in line:
                 parts = line.split("→")
