@@ -1,0 +1,17 @@
+pkgbase = omarchy-bindings-wallpaper-git
+	pkgdesc = A lightweight background daemon for Omarchy that renders system keybindings onto your wallpaper
+	pkgver = 1.0.0.r6.ac31bb6
+	pkgrel = 1
+	url = https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper
+	arch = any
+	license = MIT
+	makedepends = git
+	depends = python
+	depends = python-pillow
+	depends = swaybg
+	provides = omarchy-bindings-wallpaper
+	conflicts = omarchy-bindings-wallpaper
+	source = omarchy-bindings-wallpaper-git::git+https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git
+	sha256sums = SKIP
+
+pkgname = omarchy-bindings-wallpaper-git
