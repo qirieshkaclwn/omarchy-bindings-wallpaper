@@ -44,7 +44,20 @@
 git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git ~/.config/omarchy/extensions/bindings-wallpaper && mkdir -p ~/.config/systemd/user/ && ln -sf ~/.config/omarchy/extensions/bindings-wallpaper/omarchy-bindings-wallpaper.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now omarchy-bindings-wallpaper.service
 ```
 
-Или выполните шаги установки вручную:
+Или установите его как полноценный системный пакет с помощью `makepkg` (рекомендуемый способ для Arch Linux/Omarchy):
+
+```bash
+git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git && cd omarchy-bindings-wallpaper && makepkg -si
+```
+
+Команда автоматически соберет и установит пакет в систему, а также зарегистрирует шаблон службы. После этого запустите службу:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now omarchy-bindings-wallpaper.service
+```
+
+Или выполните шаги установки вручную для локальной установки в домашнюю директорию:
 
 1. **Склонируйте репозиторий** в директорию расширений:
    ```bash

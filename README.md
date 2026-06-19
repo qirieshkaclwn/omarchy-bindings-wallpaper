@@ -44,7 +44,20 @@ You can install and start the extension with a single command:
 git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git ~/.config/omarchy/extensions/bindings-wallpaper && mkdir -p ~/.config/systemd/user/ && ln -sf ~/.config/omarchy/extensions/bindings-wallpaper/omarchy-bindings-wallpaper.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now omarchy-bindings-wallpaper.service
 ```
 
-Or perform the installation steps manually:
+Or install it as a native system package using `makepkg` (recommended for Arch Linux/Omarchy):
+
+```bash
+git clone https://github.com/qirieshkaclwn/omarchy-bindings-wallpaper.git && cd omarchy-bindings-wallpaper && makepkg -si
+```
+
+This builds and installs the package system-wide, registering the service template. Then start the service:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now omarchy-bindings-wallpaper.service
+```
+
+Or perform the installation steps manually for a local-only setup:
 
 1. **Clone the repository** to the extensions directory:
    ```bash
