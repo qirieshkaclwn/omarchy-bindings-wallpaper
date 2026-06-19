@@ -50,39 +50,44 @@ CACHE_DIR = os.path.join(HOME, ".cache/omarchy")
 SOURCE_WP_CACHE = os.path.join(CACHE_DIR, "last_source_wallpaper.txt")
 FONT_PATH = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
 
-# Словарь перевода действий
-TRANSLATION_MAP = {
-    "Terminal": "Терминал",
-    "Tmux": "Сессия Tmux",
-    "Browser": "Браузер",
-    "File manager": "Файловый менеджер",
-    "Launch apps": "Поиск и запуск программ",
-    "Omarchy menu": "Меню Omarchy",
-    "System menu": "Системное меню",
-    "Theme menu": "Меню выбора тем",
-    "Full screen": "На весь экран",
-    "Full width": "Растянуть по ширине",
-    "Close window": "Закрыть активное окно",
-    "Close all windows": "Закрыть все окна",
-    "Lock system": "Заблокировать экран",
-    "Toggle window floating/tiling": "Смена режима плавающее/плиточное",
-    "Toggle window split": "Изменить направление разделения",
-    "Pop window out (float & pin)": "Открепить окно (поверх других)",
-    "Universal copy": "Копировать",
-    "Universal paste": "Вставить",
-    "Universal cut": "Вырезать",
-    "Clipboard manager": "Буфер обмена",
-    "Audio controls": "Управление звуком",
-    "Bluetooth controls": "Управление Bluetooth",
-    "Wifi controls": "Управление Wi-Fi",
-    "Emoji picker": "Выбор эмодзи",
-    "Color picker": "Пипетка цвета",
-    "Screenshot": "Сделать снимок экрана",
-    "Screenrecording": "Запись экрана",
-    "Show key bindings": "Показать горячие клавиши",
-    "Focus on next window": "Следующее окно",
-    "Focus on previous window": "Предыдущее окно",
-}
+def get_locale_lang():
+    lang = os.environ.get("LANG", "") or os.environ.get("LC_MESSAGES", "")
+    if not lang:
+        try:
+            import locale
+            lang = locale.getlocale(locale.LC_MESSAGES)[0]
+        except Exception:
+            lang = None
+    if not lang:
+        lang = "en"
+    lang = lang.split(".")[0].split("_")[0].lower()
+    return lang
+
+LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
+
+def load_translations():
+    lang = get_locale_lang()
+    # Fallback default values (English)
+    translations = {
+        "header_text": "SYSTEM KEYBINDINGS",
+        "go_to_workspace": "Go to workspace 1..",
+        "move_window_to_workspace": "Move window to workspace 1..",
+        "move_window_silently_to_workspace": "Move window silently to workspace 1..",
+        "go_to_window_group": "Go to window group 1.."
+    }
+    
+    locale_file = os.path.join(LOCALES_DIR, f"{lang}.json")
+    if os.path.exists(locale_file):
+        try:
+            with open(locale_file, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                translations.update(loaded)
+        except Exception as e:
+            print(f"Error loading locale file {locale_file}: {e}", file=sys.stderr)
+            
+    return translations
+
+TRANSLATIONS = load_translations()
 
 def get_mtimes():
     """Получает время модификации отслеживаемых файлов"""
@@ -149,11 +154,11 @@ def get_keybindings():
                 # Очистка HTML-сущностей
                 action = action.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
                 
-                # Переводим, если есть в словаре
-                if action in TRANSLATION_MAP:
-                    action = TRANSLATION_MAP[action]
+                # Переводим с помощью локали (сохраняя оригинальное имя для фильтрации)
+                original_action = action
+                action = TRANSLATIONS.get(action, action)
                     
-                bindings.append((shortcut, action))
+                bindings.append((shortcut, action, original_action))
     except Exception as e:
         print(f"Error reading keybindings: {e}", file=sys.stderr)
         
@@ -166,25 +171,25 @@ def get_keybindings():
     workspace_silent_moves = []
     group_switches = []
     
-    for shortcut, action in bindings:
+    for shortcut, action, original_action in bindings:
         if "XF86" in shortcut or "switch:" in shortcut:
             continue
         if shortcut in seen_shortcuts:
             continue
             
-        action_lower = action.lower()
+        original_action_lower = original_action.lower()
         
         # Фильтруем запуск отдельных сторонних программ (Obsidian, Signal, Email, Spotify, и т.д.)
         is_allowed = True
         for app in ["signal", "obsidian", "typora", "docker", "music", "spotify", "editor", "passwords", 
                     "chatgpt", "grok", "whatsapp", "google messages", "google photos", "youtube", "email", 
-                    "calendar", "file manager", "файловый менеджер", "nautilus", "1password", "cliamp", "lazydocker", "signal-desktop"]:
-            if app in action_lower:
+                    "calendar", "file manager", "nautilus", "1password", "cliamp", "lazydocker", "signal-desktop"]:
+            if app in original_action_lower:
                 is_allowed = False
                 break
                 
         # Но явно разрешаем Терминал и Браузер
-        if "terminal" in action_lower or "tmux" in action_lower or "browser" in action_lower or "браузер" in action_lower:
+        if "terminal" in original_action_lower or "tmux" in original_action_lower or "browser" in original_action_lower:
             is_allowed = True
             
         if not is_allowed:
@@ -206,13 +211,13 @@ def get_keybindings():
             
     # Добавляем объединенные числовые бинды в начало
     if workspace_switches:
-        filtered.insert(0, ("SUPER + 1..9", f"Перейти на раб. стол 1..{max(workspace_switches)}"))
+        filtered.insert(0, ("SUPER + 1..9", f"{TRANSLATIONS['go_to_workspace']}{max(workspace_switches)}"))
     if workspace_moves:
-        filtered.insert(1, ("SUPER SHIFT + 1..9", f"Переместить окно на раб. стол 1..{max(workspace_moves)}"))
+        filtered.insert(1, ("SUPER SHIFT + 1..9", f"{TRANSLATIONS['move_window_to_workspace']}{max(workspace_moves)}"))
     if workspace_silent_moves:
-        filtered.insert(2, ("SUPER SHIFT ALT + 1..9", f"Переместить окно скрытно на раб. стол 1..{max(workspace_silent_moves)}"))
+        filtered.insert(2, ("SUPER SHIFT ALT + 1..9", f"{TRANSLATIONS['move_window_silently_to_workspace']}{max(workspace_silent_moves)}"))
     if group_switches:
-        filtered.insert(3, ("SUPER ALT + 1..5", f"Перейти в группу окон 1..{max(group_switches)}"))
+        filtered.insert(3, ("SUPER ALT + 1..5", f"{TRANSLATIONS['go_to_window_group']}{max(group_switches)}"))
         
     # Ограничиваем общим количеством 50 биндов
     return filtered[:50]
@@ -304,7 +309,7 @@ def generate_wallpaper():
     )
     
     # Рисуем заголовок
-    header_text = "   ГОРЯЧИЕ КЛАВИШИ СИСТЕМЫ"
+    header_text = f"   {TRANSLATIONS['header_text']}"
     draw.text((card_x1 + 30, card_y1 + 25), header_text, font=title_font, fill=(137, 220, 235, 255))
     
     # Разделитель

@@ -1,0 +1,7 @@
+{
+    "header_text": "SYSTEM KEYBINDINGS",
+    "go_to_workspace": "Go to workspace 1..",
+    "move_window_to_workspace": "Move window to workspace 1..",
+    "move_window_silently_to_workspace": "Move window silently to workspace 1..",
+    "go_to_window_group": "Go to window group 1.."
+}
