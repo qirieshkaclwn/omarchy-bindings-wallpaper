@@ -1,8 +1,8 @@
 # Omarchy Keybindings Wallpaper
 
-![Preview](preview.png)
-
 *Read this in other languages: [Русский](README.ru.md).*
+
+![Preview](preview.png)
 
 A lightweight background daemon for the Omarchy Linux distribution (based on Hyprland) that automatically renders a system keybindings cheat sheet directly onto your active wallpaper inside a beautiful semi-transparent card.
 

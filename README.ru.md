@@ -1,8 +1,8 @@
 # Omarchy Keybindings Wallpaper
 
-![Демонстрация работы](preview.png)
+*Читать на других языках: [English](README.md).*
 
-*Read this in other languages: [English](README.md).*
+![Демонстрация работы](preview.png)
 
 Легковесный фоновый демон для дистрибутива Omarchy (на базе Hyprland), который автоматически рендерит шпаргалку с горячими клавишами системы прямо на ваши текущие обои в виде красивой полупрозрачной панели.
 
