@@ -403,7 +403,9 @@ def generate_wallpaper():
     
     output_dir = os.path.dirname(GENERATED_WALLPAPER)
     os.makedirs(output_dir, exist_ok=True)
-    final_img.convert("RGB").save(GENERATED_WALLPAPER, "PNG")
+    tmp_path = GENERATED_WALLPAPER + ".tmp"
+    final_img.convert("RGB").save(tmp_path, "PNG")
+    os.replace(tmp_path, GENERATED_WALLPAPER)
     
     # Устанавливаем новые обои в системе
     bg_link = get_bg_link()
