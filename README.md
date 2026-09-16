@@ -30,9 +30,9 @@ A lightweight background daemon for the Omarchy Linux distribution (based on Hyp
 
 To run this extension, you need:
 * Python 3
-* Pillow image library (`pip install Pillow`)
+* Pillow image library (`pip install Pillow` or `pacman -S python-pillow`)
 * JetBrains Mono Nerd Font (expected by default at `/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf`)
-* swaybg wallpaper utility (installed by default in Omarchy)
+* Omarchy shell (default in Omarchy Quattro) or `swaybg` (for legacy Omarchy setups)
 
 ---
 
@@ -85,7 +85,7 @@ You can verify the status of the running service with:
 systemctl --user status omarchy-bindings-wallpaper.service
 ```
 
-Any changes to `~/.config/hypr/bindings.conf` will now automatically show up on your wallpaper within 3 seconds!
+Any changes to `~/.config/hypr/bindings.lua` (or `bindings.conf`) will now automatically show up on your wallpaper within 3 seconds!
 
 ---
 

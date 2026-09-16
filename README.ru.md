@@ -30,9 +30,9 @@
 
 Для работы плагина необходимы:
 * Python 3
-* Библиотека для работы с изображениями Pillow (`pip install Pillow`)
+* Библиотека для работы с изображениями Pillow (`pip install Pillow` или `pacman -S python-pillow`)
 * Установленный шрифт JetBrains Mono Nerd Font (по умолчанию ожидается по пути `/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf`)
-* Утилита отрисовки обоев swaybg (стандартная для Omarchy)
+* Omarchy shell (по умолчанию в Omarchy Quattro) или утилита `swaybg` (для старых версий Omarchy)
 
 ---
 
@@ -85,7 +85,7 @@ systemctl --user enable --now omarchy-bindings-wallpaper.service
 systemctl --user status omarchy-bindings-wallpaper.service
 ```
 
-Любые изменения в файле `~/.config/hypr/bindings.conf` теперь автоматически отобразятся на ваших обоях в течение 3 секунд!
+Любые изменения в файле `~/.config/hypr/bindings.lua` (или `bindings.conf`) теперь автоматически отобразятся на ваших обоях в течение 3 секунд!
 
 ---
 

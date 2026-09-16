@@ -5,6 +5,7 @@ import json
 import time
 import math
 import argparse
+import shutil
 from PIL import Image, ImageDraw, ImageFont
 
 def ensure_wayland_env():
@@ -36,15 +37,39 @@ ensure_wayland_env()
 
 HOME = os.path.expanduser("~")
 
-# Пути к отслеживаемым файлам
-WATCH_FILES = [
-    os.path.join(HOME, ".config/hypr/bindings.conf"),
-    os.path.join(HOME, ".config/hypr/input.conf"),
-    os.path.join(HOME, ".config/hypr/looknfeel.conf"),
-    os.path.join(HOME, ".config/hypr/hyprland.conf"),
-]
+def get_bg_link():
+    """Определяет путь к симлинку текущего фона в Omarchy (Quattro / Legacy)"""
+    state_link = os.path.join(HOME, ".local/state/omarchy/current/background")
+    config_link = os.path.join(HOME, ".config/omarchy/current/background")
+    if os.path.exists(state_link) or os.path.isdir(os.path.dirname(state_link)):
+        return state_link
+    return config_link
 
-BG_LINK = os.path.join(HOME, ".config/omarchy/current/background")
+def get_watch_files():
+    """Возвращает список отслеживаемых конфигурационных файлов Hyprland (Lua и Conf)"""
+    files = set()
+    hypr_dir = os.path.join(HOME, ".config/hypr")
+    if os.path.isdir(hypr_dir):
+        files.add(hypr_dir)
+        for f in os.listdir(hypr_dir):
+            if f.endswith((".lua", ".conf")):
+                files.add(os.path.join(hypr_dir, f))
+    defaults = [
+        os.path.join(HOME, ".config/hypr/bindings.lua"),
+        os.path.join(HOME, ".config/hypr/bindings.conf"),
+        os.path.join(HOME, ".config/hypr/input.lua"),
+        os.path.join(HOME, ".config/hypr/input.conf"),
+        os.path.join(HOME, ".config/hypr/looknfeel.lua"),
+        os.path.join(HOME, ".config/hypr/looknfeel.conf"),
+        os.path.join(HOME, ".config/hypr/hyprland.lua"),
+        os.path.join(HOME, ".config/hypr/hyprland.conf"),
+        os.path.join(HOME, ".config/hypr/monitors.lua"),
+        os.path.join(HOME, ".config/hypr/autostart.lua"),
+    ]
+    for p in defaults:
+        files.add(p)
+    return sorted(list(files))
+
 GENERATED_WALLPAPER = os.path.join(HOME, "Pictures/wallpaper_with_bindings.png")
 CACHE_DIR = os.path.join(HOME, ".cache/omarchy")
 SOURCE_WP_CACHE = os.path.join(CACHE_DIR, "last_source_wallpaper.txt")
@@ -106,7 +131,7 @@ TRANSLATIONS = load_translations()
 def get_mtimes():
     """Получает время модификации отслеживаемых файлов"""
     mtimes = {}
-    for f in WATCH_FILES:
+    for f in get_watch_files():
         if os.path.exists(f):
             mtimes[f] = os.path.getmtime(f)
     return mtimes
@@ -129,35 +154,50 @@ def get_screen_resolution():
 def get_source_wallpaper():
     """Определяет путь к исходным обоям без наложенных биндов"""
     os.makedirs(CACHE_DIR, exist_ok=True)
+    bg_link = get_bg_link()
     
     # 1. Проверяем текущую ссылку
-    if os.path.exists(BG_LINK):
-        resolved = os.path.realpath(BG_LINK)
-        # Если ссылка указывает НЕ на наши сгенерированные обои, значит, юзер сменил обои
-        if resolved != GENERATED_WALLPAPER:
+    if os.path.exists(bg_link):
+        resolved = os.path.realpath(bg_link)
+        # Если ссылка указывает НЕ на наши сгенерированные обои, значит, юзер/система сменили обои
+        if resolved != GENERATED_WALLPAPER and os.path.exists(resolved):
             # Сохраняем как новые исходные обои
             with open(SOURCE_WP_CACHE, "w") as f:
                 f.write(resolved)
             return resolved
 
-    # 2. Если ссылка указывает на сгенерированные обои, читаем кэш
+    # 2. Если ссылка указывает на сгенерированные обои или пока недоступна, читаем кэш
     if os.path.exists(SOURCE_WP_CACHE):
         with open(SOURCE_WP_CACHE, "r") as f:
             cached = f.read().strip()
-            if os.path.exists(cached):
+            if os.path.exists(cached) and cached != GENERATED_WALLPAPER:
                 return cached
 
-    # 3. Дефолтный путь
-    default_bg = os.path.join(HOME, ".config/omarchy/current/theme/backgrounds/1-synth-scape.jpg")
-    if os.path.exists(default_bg):
-        return default_bg
+    # 3. Дефолтные пути и поиск обоев темы (Quattro и legacy)
+    candidates = [
+        os.path.join(HOME, ".local/state/omarchy/current/theme/backgrounds"),
+        os.path.join(HOME, ".config/omarchy/current/theme/backgrounds"),
+        "/usr/share/omarchy/themes",
+    ]
+    for cdir in candidates:
+        if os.path.isdir(cdir):
+            for root, _, files in os.walk(cdir):
+                img_files = sorted([os.path.join(root, f) for f in files if f.lower().endswith((".jpg", ".png", ".jpeg", ".webp"))])
+                if img_files:
+                    return img_files[0]
+
     return None
 
 def get_keybindings():
     """Получает список всех горячих клавиш системы с фильтрацией и переводом"""
     bindings = []
     try:
-        omarchy_bin = os.path.join(HOME, ".local/share/omarchy/bin/omarchy")
+        omarchy_bin = (
+            shutil.which("omarchy")
+            or os.path.join(HOME, ".local/share/omarchy/bin/omarchy")
+            or "/usr/share/omarchy/bin/omarchy"
+            or "/usr/bin/omarchy"
+        )
         cmd_out = subprocess.check_output([omarchy_bin, "menu", "keybindings", "--print"]).decode("utf-8")
         for line in cmd_out.splitlines():
             if "→" in line:
@@ -366,20 +406,27 @@ def generate_wallpaper():
     final_img.convert("RGB").save(GENERATED_WALLPAPER, "PNG")
     
     # Устанавливаем новые обои в системе
-    os.environ["CURRENT_BACKGROUND_LINK"] = BG_LINK
-    subprocess.run(["ln", "-nsf", GENERATED_WALLPAPER, BG_LINK])
-    subprocess.run(["pkill", "-x", "swaybg"])
+    bg_link = get_bg_link()
+    os.makedirs(os.path.dirname(bg_link), exist_ok=True)
+    os.environ["CURRENT_BACKGROUND_LINK"] = bg_link
+    subprocess.run(["ln", "-nsf", GENERATED_WALLPAPER, bg_link])
     
-    # Запускаем swaybg через uwsm-app в фоне
-    try:
-        subprocess.Popen(
-            ["uwsm-app", "--", "swaybg", "-i", BG_LINK, "-m", "fill"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True
-        )
-    except Exception as e:
-        print(f"Error starting swaybg: {e}", file=sys.stderr)
+    # В Omarchy Quattro обои устанавливаются через omarchy-shell
+    if shutil.which("omarchy-shell"):
+        subprocess.run(["omarchy-shell", "-q", "background", "set", GENERATED_WALLPAPER])
+        
+    # Запускаем swaybg через uwsm-app в фоне (для совместимости со старыми версиями)
+    if shutil.which("swaybg"):
+        subprocess.run(["pkill", "-x", "swaybg"])
+        try:
+            subprocess.Popen(
+                ["uwsm-app", "--", "swaybg", "-i", bg_link, "-m", "fill"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+        except Exception as e:
+            print(f"Error starting swaybg: {e}", file=sys.stderr)
         
     print(f"Wallpaper updated successfully! Source: {bg_path}")
     return True
@@ -404,10 +451,11 @@ def daemon_mode():
                     last_mtimes = get_mtimes()
                 continue
             
-            # 1. Проверяем, сменил ли пользователь фоновую картинку
-            if os.path.exists(BG_LINK):
-                resolved = os.path.realpath(BG_LINK)
-                if resolved != GENERATED_WALLPAPER:
+            # 1. Проверяем, сменил ли пользователь/система фоновую картинку
+            bg_link = get_bg_link()
+            if os.path.exists(bg_link):
+                resolved = os.path.realpath(bg_link)
+                if resolved != GENERATED_WALLPAPER and os.path.exists(resolved):
                     print(f"Wallpaper change detected to: {resolved}")
                     # Сохраняем новый исходник
                     with open(SOURCE_WP_CACHE, "w") as f:
@@ -417,16 +465,9 @@ def daemon_mode():
                     continue
                     
             # 2. Проверяем изменения в файлах конфигурации
-            config_changed = False
             current_mtimes = get_mtimes()
-            for f in WATCH_FILES:
-                if os.path.exists(f):
-                    mtime = current_mtimes.get(f)
-                    if mtime != last_mtimes.get(f):
-                        print(f"Config change detected in: {f}")
-                        config_changed = True
-                        
-            if config_changed:
+            if current_mtimes != last_mtimes:
+                print("Config change detected in Hyprland configuration files")
                 wallpaper_generated = generate_wallpaper()
                 last_mtimes = current_mtimes
                 
