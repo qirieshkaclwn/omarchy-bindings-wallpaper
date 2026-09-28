@@ -70,10 +70,44 @@ def get_watch_files():
         files.add(p)
     return sorted(list(files))
 
-GENERATED_WALLPAPER = os.path.join(HOME, "Pictures/wallpaper_with_bindings.png")
+GENERATED_DIR = os.path.join(HOME, "Pictures")
+GENERATED_PREFIX = "wallpaper_with_bindings"
 CACHE_DIR = os.path.join(HOME, ".cache/omarchy")
 SOURCE_WP_CACHE = os.path.join(CACHE_DIR, "last_source_wallpaper.txt")
 FONT_PATH = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
+
+def is_generated(path):
+    """Проверяет, является ли путь одним из сгенерированных демоном обоев"""
+    if not path:
+        return False
+    try:
+        real = os.path.realpath(path)
+        base = os.path.basename(real)
+        return base.startswith(GENERATED_PREFIX) and base.endswith(".png")
+    except Exception:
+        return False
+
+def cleanup_old_wallpapers(current_path, keep=2):
+    """Удаляет старые сгенерированные файлы обоев, сохраняя актуальные"""
+    try:
+        if not os.path.isdir(GENERATED_DIR):
+            return
+        files = []
+        for fname in os.listdir(GENERATED_DIR):
+            if fname.startswith(GENERATED_PREFIX) and fname.endswith(".png"):
+                full_path = os.path.join(GENERATED_DIR, fname)
+                if os.path.isfile(full_path):
+                    files.append(full_path)
+        # Сортируем по времени модификации: самые новые первыми
+        files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+        for old_file in files[keep:]:
+            if old_file != current_path:
+                try:
+                    os.remove(old_file)
+                except OSError:
+                    pass
+    except Exception as e:
+        print(f"Error during cleanup of old wallpapers: {e}", file=sys.stderr)
 
 def get_locale_lang():
     # Если в любой из переменных локали указан русский, используем его (актуально при LANG=en и LC_TIME=ru)
@@ -160,7 +194,7 @@ def get_source_wallpaper():
     if os.path.exists(bg_link):
         resolved = os.path.realpath(bg_link)
         # Если ссылка указывает НЕ на наши сгенерированные обои, значит, юзер/система сменили обои
-        if resolved != GENERATED_WALLPAPER and os.path.exists(resolved):
+        if not is_generated(resolved) and os.path.exists(resolved):
             # Сохраняем как новые исходные обои
             with open(SOURCE_WP_CACHE, "w") as f:
                 f.write(resolved)
@@ -170,7 +204,7 @@ def get_source_wallpaper():
     if os.path.exists(SOURCE_WP_CACHE):
         with open(SOURCE_WP_CACHE, "r") as f:
             cached = f.read().strip()
-            if os.path.exists(cached) and cached != GENERATED_WALLPAPER:
+            if os.path.exists(cached) and not is_generated(cached):
                 return cached
 
     # 3. Дефолтные пути и поиск обоев темы (Quattro и legacy)
@@ -401,21 +435,24 @@ def generate_wallpaper():
     # Объединяем и сохраняем
     final_img = Image.alpha_composite(img.convert("RGBA"), overlay)
     
-    output_dir = os.path.dirname(GENERATED_WALLPAPER)
-    os.makedirs(output_dir, exist_ok=True)
-    tmp_path = GENERATED_WALLPAPER + ".tmp"
+    os.makedirs(GENERATED_DIR, exist_ok=True)
+    # Генерируем уникальное имя файла с миллисекундной меткой времени,
+    # чтобы обойти кэширование изображений по URL в QtQuick / omarchy-shell
+    timestamp = int(time.time() * 1000)
+    output_path = os.path.join(GENERATED_DIR, f"{GENERATED_PREFIX}_{timestamp}.png")
+    tmp_path = output_path + ".tmp"
     final_img.convert("RGB").save(tmp_path, "PNG")
-    os.replace(tmp_path, GENERATED_WALLPAPER)
+    os.replace(tmp_path, output_path)
     
     # Устанавливаем новые обои в системе
     bg_link = get_bg_link()
     os.makedirs(os.path.dirname(bg_link), exist_ok=True)
     os.environ["CURRENT_BACKGROUND_LINK"] = bg_link
-    subprocess.run(["ln", "-nsf", GENERATED_WALLPAPER, bg_link])
+    subprocess.run(["ln", "-nsf", output_path, bg_link])
     
     # В Omarchy Quattro обои устанавливаются через omarchy-shell
     if shutil.which("omarchy-shell"):
-        subprocess.run(["omarchy-shell", "-q", "background", "set", GENERATED_WALLPAPER])
+        subprocess.run(["omarchy-shell", "-q", "background", "set", output_path])
         
     # Запускаем swaybg через uwsm-app в фоне (для совместимости со старыми версиями)
     if shutil.which("swaybg"):
@@ -429,7 +466,10 @@ def generate_wallpaper():
             )
         except Exception as e:
             print(f"Error starting swaybg: {e}", file=sys.stderr)
-        
+            
+    # Удаляем старые версии сгенерированных обоев (оставляем текущий и 1 предыдущий на время перехода)
+    cleanup_old_wallpapers(output_path, keep=2)
+    
     print(f"Wallpaper updated successfully! Source: {bg_path}")
     return True
 
@@ -457,7 +497,7 @@ def daemon_mode():
             bg_link = get_bg_link()
             if os.path.exists(bg_link):
                 resolved = os.path.realpath(bg_link)
-                if resolved != GENERATED_WALLPAPER and os.path.exists(resolved):
+                if not is_generated(resolved) and os.path.exists(resolved):
                     print(f"Wallpaper change detected to: {resolved}")
                     # Сохраняем новый исходник
                     with open(SOURCE_WP_CACHE, "w") as f:
