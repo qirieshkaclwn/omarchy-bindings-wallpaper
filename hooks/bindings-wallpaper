@@ -1,0 +1,6 @@
+#!/bin/bash
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:$OMARCHY_PATH/bin:$PATH"
+
+# Run wallpaper generation immediately on theme set
+python "$HOME/.config/omarchy/extensions/bindings-wallpaper/bindings_daemon.py" --generate >/dev/null 2>&1 &

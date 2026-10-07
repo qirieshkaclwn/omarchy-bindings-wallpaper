@@ -3,6 +3,9 @@ Description=Omarchy Keybindings Wallpaper Daemon
 After=graphical-session.target
 
 [Service]
+Environment=PYTHONUNBUFFERED=1
+Environment=OMARCHY_PATH=/usr/share/omarchy
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/usr/share/omarchy/bin
 ExecStart=/usr/bin/python %h/.config/omarchy/extensions/bindings-wallpaper/bindings_daemon.py --daemon
 Restart=always
 RestartSec=5
